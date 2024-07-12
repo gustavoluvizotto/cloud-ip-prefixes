@@ -20,14 +20,26 @@ func CloudIpv4Prefixes() {
 	err := downloadFile("https://ip-ranges.amazonaws.com/ip-ranges.json", "ipv4_prefixes/aws/ip-ranges.json")
 	if err != nil {
 		log.Error().Err(err).Msg("Error downloading AWS prefixes")
+		err = os.RemoveAll("ipv4_prefixes/aws")
+		if err != nil {
+			log.Warn().Err(err).Msg("Error removing AWS folder")
+		}
 	}
 	err = downloadFile("https://www.cloudflare.com/ips-v4", "ipv4_prefixes/cloudflare/ips-v4.txt")
 	if err != nil {
 		log.Error().Err(err).Msg("Error downloading Cloudflare prefixes")
+		err = os.RemoveAll("ipv4_prefixes/cloudflare")
+		if err != nil {
+			log.Warn().Err(err).Msg("Error removing Cloudflare folder")
+		}
 	}
 	err = downloadFile("https://www.gstatic.com/ipranges/cloud.json", "ipv4_prefixes/google/cloud.json")
 	if err != nil {
 		log.Error().Err(err).Msg("Error downloading Google prefixes")
+		err = os.RemoveAll("ipv4_prefixes/google")
+		if err != nil {
+			log.Warn().Err(err).Msg("Error removing Google folder")
+		}
 	}
 
 	msPrefixUrl, err := getMsDownloadLink("https://www.microsoft.com/en-us/download/details.aspx?id=56519")
@@ -37,29 +49,53 @@ func CloudIpv4Prefixes() {
 	err = downloadFile(msPrefixUrl, "ipv4_prefixes/microsoft/azure.json")
 	if err != nil {
 		log.Error().Err(err).Msg("Error downloading Azure prefixes")
+		err = os.RemoveAll("ipv4_prefixes/microsoft")
+		if err != nil {
+			log.Warn().Err(err).Msg("Error removing Microsoft folder")
+		}
 	}
 	storeAzureSpecialPrefix("ipv4_prefixes/microsoft/")
 
 	err = downloadFile("https://docs.oracle.com/iaas/tools/public_ip_ranges.json", "ipv4_prefixes/oracle/public_ip_ranges.json")
 	if err != nil {
 		log.Error().Err(err).Msg("Error downloading Oracle prefixes")
+		err = os.RemoveAll("ipv4_prefixes/oracle")
+		if err != nil {
+			log.Warn().Err(err).Msg("Error removing Oracle folder")
+		}
 	}
 	err = downloadFile("https://geoip.linode.com/", "ipv4_prefixes/linode/linode.csv")
 	if err != nil {
 		log.Error().Err(err).Msg("Error downloading Linode prefixes")
+		err = os.RemoveAll("ipv4_prefixes/linode")
+		if err != nil {
+			log.Warn().Err(err).Msg("Error removing Linode folder")
+		}
 	}
 	err = downloadFile("https://api.fastly.com/public-ip-list", "ipv4_prefixes/fastly/public-ip-list.json")
 	if err != nil {
 		log.Error().Err(err).Msg("Error downloading Fastly prefixes")
+		err = os.RemoveAll("ipv4_prefixes/fastly")
+		if err != nil {
+			log.Warn().Err(err).Msg("Error removing Fastly folder")
+		}
 	}
 	err = downloadFile("https://digitalocean.com/geo/google.csv", "ipv4_prefixes/digitalocean/google.csv")
 	if err != nil {
 		log.Error().Err(err).Msg("Error downloading DigitalOcean prefixes")
+		err = os.RemoveAll("ipv4_prefixes/digitalocean")
+		if err != nil {
+			log.Warn().Err(err).Msg("Error removing DigitalOcean folder")
+		}
 	}
 
 	err = downloadFile("https://techdocs.akamai.com/property-manager/pdfs/akamai_ipv4_ipv6_CIDRs-txt.zip", "ipv4_prefixes/akamai/akamai_ipv4_ipv6_CIDRs-txt.zip")
 	if err != nil {
 		log.Error().Err(err).Msg("Error downloading Akamai prefixes")
+		err = os.RemoveAll("ipv4_prefixes/akamai")
+		if err != nil {
+			log.Warn().Err(err).Msg("Error removing Akamai folder")
+		}
 	} else {
 		err = unzip.Extract("ipv4_prefixes/akamai/akamai_ipv4_ipv6_CIDRs-txt.zip", "ipv4_prefixes/akamai/")
 		if err != nil {

@@ -2,6 +2,7 @@ package s3upload
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"github.com/codingsince1985/checksum"
 	"github.com/minio/minio-go/v7"
@@ -21,7 +22,13 @@ const (
 	bucket   = "catrin"
 )
 
+type s3Obj struct {
+	Etag      string
+	Timestamp time.Time
+}
+
 func CloudIpv4PrefixesIfNecessary() {
+	log.Info().Msg("Starting upload files to S3...")
 	mc, err := getMinioClient("upload")
 	if err != nil {
 		log.Fatal().Err(err).Msg("Cannot retrieve minio client")
@@ -30,17 +37,16 @@ func CloudIpv4PrefixesIfNecessary() {
 	if err != nil {
 		log.Fatal().Err(err).Msg("Cannot list all files to be uploaded")
 	}
-	fmt.Println(files)
 
 	for _, localFile := range files {
 		dirs := path.Dir(localFile)
 		provider := strings.Split(dirs, "/")[1]
 		if shallUpload(mc, localFile, provider) {
-			remoteFile := getRemoteFilePath(provider)
+			remoteFile := getRemoteFilePath(provider, localFile)
 			err = uploadS3(mc, localFile, remoteFile)
 		}
 	}
-
+	log.Info().Msg("Finished upload files to S3")
 }
 
 func filePathWalkDir(root string) ([]string, error) {
@@ -54,40 +60,56 @@ func filePathWalkDir(root string) ([]string, error) {
 	return files, err
 }
 
-func getRemoteFilePath(provider string) string {
+func getRemoteFilePath(provider string, localFile string) string {
 	timestamp := time.Now().UTC()
 	yearMonthDay := fmt.Sprintf("year=%04d/month=%02d/day=%02d", timestamp.Year(), timestamp.Month(), timestamp.Day())
-	remoteFile := fmt.Sprintf("cloud-ip-prefixes/format=raw/provider=%s/%s", provider, yearMonthDay)
+	filename := filepath.Base(localFile)
+	remoteFile := fmt.Sprintf("cloud-ip-prefixes/format=raw/provider=%s/%s/%s", provider, yearMonthDay, filename)
 	return remoteFile
 }
 
 func shallUpload(mc *minio.Client, localFile string, provider string) bool {
-	localMd5Sum, err := checksum.MD5sum(localFile)
-	if err != nil {
-		log.Error().Err(err).Msg("could not calculate local md5sum")
+	empty, err := isFileEmpty(localFile)
+	if err != nil || empty {
+		log.Warn().Err(err).Str("filename", localFile).Msg("Empty file")
 		return false
 	}
-	remoteMd5Sum, err := getETagFromLatest(mc, provider)
+	localMd5Sum, err := checksum.MD5sum(localFile)
+	if err != nil {
+		log.Warn().Err(err).Msg("could not calculate local md5sum")
+		return false
+	}
+	remoteFilesMap, err := getETagFromLatest(mc, provider)
 	if err != nil {
 		log.Warn().Err(err).Msg("could not get latest etag for provider: " + provider)
 		return true
 	}
+	remoteMd5Sum := remoteFilesMap[path.Base(localFile)]
 	// do not upload if checksums are equal
 	return !strings.EqualFold(localMd5Sum, remoteMd5Sum)
 }
 
-func getETagFromLatest(mc *minio.Client, provider string) (string, error) {
+func isFileEmpty(filename string) (bool, error) {
+	fileInfo, err := os.Stat(filename)
+	if err != nil {
+		return false, err
+	}
+	return fileInfo.Size() == 0, nil
+}
+
+func getETagFromLatest(mc *minio.Client, provider string) (map[string]string, error) {
 	re := regexp.MustCompile(`.*(year=(\d{4})/month=(\d{2})/day=(\d{2})).*`)
 	prefix := fmt.Sprintf("cloud-ip-prefixes/format=raw/provider=%s", provider)
 	listOpts := minio.ListObjectsOptions{
 		Prefix:    prefix,
 		Recursive: true,
 	}
-	tsMap := make(map[string]string)
+
+	tsMap := make(map[string][]s3Obj)
 	ctx := context.Background()
 	for obj := range mc.ListObjects(ctx, bucket, listOpts) {
 		if obj.Err != nil {
-			return "", obj.Err
+			return nil, obj.Err
 		}
 		matches := re.FindStringSubmatch(obj.Key)
 		if matches == nil || len(matches) < 5 {
@@ -96,16 +118,32 @@ func getETagFromLatest(mc *minio.Client, provider string) (string, error) {
 		year := matches[2]
 		month := matches[3]
 		day := matches[4]
-		tsMap[fmt.Sprintf("%s%s%s", year, month, day)] = obj.ETag
+		ts, err := time.Parse("20060102", fmt.Sprintf("%s%s%s", year, month, day))
+		if err != nil {
+			continue
+		}
+		s := s3Obj{Etag: obj.ETag, Timestamp: ts}
+		filename := path.Base(obj.Key)
+		tsMap[filename] = append(tsMap[filename], s)
 	}
 
-	timestamps := make([]string, 0)
-	for k := range tsMap {
-		timestamps = append(timestamps, k)
+	for k, slice := range tsMap {
+		sort.Slice(slice, func(i, j int) bool {
+			return slice[i].Timestamp.Before(slice[j].Timestamp)
+		})
+		tsMap[k] = slice
 	}
-	sort.Strings(timestamps)
-	latestTs := timestamps[len(timestamps)-1]
-	return tsMap[latestTs], nil
+
+	fileTagMap := make(map[string]string)
+	if len(tsMap) > 0 {
+		for k, slice := range tsMap {
+			etag := slice[len(slice)-1].Etag
+			fileTagMap[k] = etag
+		}
+		return fileTagMap, nil
+	} else {
+		return nil, errors.New("no files")
+	}
 }
 
 func getMinioClient(profile string) (*minio.Client, error) {
@@ -139,7 +177,7 @@ func uploadS3(minioClient *minio.Client, localFile string, remoteFile string) er
 		return err
 	}
 
-	log.Info().Str("ETag", uploadInfo.ETag).Msg("Successfully uploaded")
+	log.Info().Str("ETag", uploadInfo.ETag).Str("file", remoteFile).Msg("Successfully uploaded")
 
 	return nil
 }
