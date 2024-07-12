@@ -1,4 +1,4 @@
-FROM docker.io/golang:1.22.4
+FROM docker.io/golang:1.22.5
 LABEL authors="Gustavo Luvizotto Cesar"
 
 WORKDIR /

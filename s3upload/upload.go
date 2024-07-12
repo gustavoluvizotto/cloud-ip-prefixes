@@ -33,7 +33,7 @@ func CloudIpv4PrefixesIfNecessary() {
 	if err != nil {
 		log.Fatal().Err(err).Msg("Cannot retrieve minio client")
 	}
-	files, err := filePathWalkDir("ipv4_prefixes")
+	files, err := filePathWalkDir("ip_prefixes")
 	if err != nil {
 		log.Fatal().Err(err).Msg("Cannot list all files to be uploaded")
 	}
@@ -192,4 +192,7 @@ func UploadLog(logFile string) {
 	timestampStr := fmt.Sprintf("%04d%02d%02d", timestamp.Year(), timestamp.Month(), timestamp.Day())
 	remoteLogFile := fmt.Sprintf("artefacts/tool=cloud-ip-prefixes/%s/%s_log.json", yearMonthDay, timestampStr)
 	err = uploadS3(mc, logFile, remoteLogFile)
+	if err != nil {
+		log.Error().Err(err).Msg("Cannot upload log file")
+	}
 }

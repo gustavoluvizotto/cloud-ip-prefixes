@@ -1,4 +1,4 @@
-/ipv4_prefixes/*
+/ip_prefixes/*
 /.idea/*
 /credentials
 /output.log
