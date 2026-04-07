@@ -80,6 +80,7 @@ func CloudIpv4Prefixes() {
 			log.Warn().Err(err).Msg("Error removing Fastly folder")
 		}
 	}
+	// see https://ideas.digitalocean.com/documentation/p/list-of-digital-ocean-ips-cidrs
 	err = downloadFile("https://digitalocean.com/geo/google.csv", "ip_prefixes/digitalocean/google.csv")
 	if err != nil {
 		log.Error().Err(err).Msg("Error downloading DigitalOcean prefixes")
